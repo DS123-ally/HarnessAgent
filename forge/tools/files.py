@@ -62,7 +62,7 @@ class ReadFileTool(Tool):
                 "error": str(exc)
             }
 
-        ## List File Tool
+## List File Tool
 
 class ListFilesTool(Tool):
     name = "list_files"
@@ -119,7 +119,7 @@ class ListFilesTool(Tool):
             }
 
 
-        ## Search File Tool
+## Search File Tool
 
 
 class SearchFilesTool(Tool):
@@ -190,6 +190,71 @@ class SearchFilesTool(Tool):
                 "success": True,
                 "query": query,
                 "results": results
+            }
+
+        except Exception as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
+
+
+## Wrte Tool File
+
+
+class WriteFileTool(Tool):
+    name = "write_file"
+
+    description = "Create a new file or overwrite an existing text file."
+
+    parameters = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Relative path of the file to write"
+            },
+            "content": {
+                "type": "string",
+                "description": "Full content to write into the file"
+            }
+        },
+        "required": ["path", "content"]
+    }
+
+    def execute(self, **kwargs):
+        path_str = kwargs.get("path")
+        content = kwargs.get("content")
+
+        if not path_str:
+            return {
+                "success": False,
+                "error": "Missing path"
+            }
+
+        if content is None:
+            return {
+                "success": False,
+                "error": "Missing content"
+            }
+
+        path = Path(path_str)
+
+        try:
+            path.parent.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+            path.write_text(
+                content,
+                encoding="utf-8"
+            )
+
+            return {
+                "success": True,
+                "path": path_str,
+                "message": f"Wrote file: {path_str}"
             }
 
         except Exception as exc:

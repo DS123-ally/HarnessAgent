@@ -3,7 +3,7 @@ from forge.conversation import Conversation
 from forge.context.instructions import load_project_instructions
 from forge.model.lmstudio import LMStudioProvider
 
-from forge.tools.files import ReadFileTool,ListFilesTool,SearchFilesTool
+from forge.tools.files import ReadFileTool,ListFilesTool,SearchFilesTool,WriteFileTool
 from forge.tools.registry import ToolRegistry
 
 
@@ -27,6 +27,7 @@ You can inspect the project using tools.
 Use list_files when you need to discover files or folders.
 use search_file when you need to locate code or text.
 Use read_file when you need to inspect file contents.
+Use write_file when you need to create any new file or overwrite the file.
 
 
 Do not invent project structure or file contents.
@@ -46,6 +47,8 @@ tools.register(
 )
 tools.register(ListFilesTool())
 tools.register(SearchFilesTool())
+tools.register(WriteFileTool())
+
 
 agent = Agent(
     model=model,

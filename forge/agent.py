@@ -1,4 +1,5 @@
 import json
+from forge.tools.approval import ApprovalGate
 
 
 class Agent:
@@ -11,6 +12,7 @@ class Agent:
         self.model = model
         self.conversation = conversation
         self.tools = tool_registry
+        self.approval = ApprovalGate()
 
     def run(self, user_input: str):
 
@@ -73,7 +75,26 @@ class Agent:
                     arguments
                 )
 
-                self.conversation.messages.append({
+                if self.approval.requires_approval(tool_name):
+
+                  approved = self.approval.ask(
+        tool_name,
+        arguments
+      )
+
+                if not approved:
+                    result = {
+                    "success": False,
+                    "error": "User denied tool execution"
+                }
+
+                else:
+                     result = self.tools.execute(
+            tool_name,
+            arguments
+        )       
+
+            self.conversation.messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
                     "content": json.dumps(result)
