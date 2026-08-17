@@ -59,3 +59,57 @@ class ReadFileTool(Tool):
                 "success": False,
                 "error": str(exc)
             }
+
+class ListFilesTool(Tool):
+    name = "list_files"
+
+    description = "List files and folders inside a project directory."
+
+    parameters = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Directory path to list. Use '.' for project root."
+            }
+        },
+        "required": ["path"]
+    }
+
+    def execute(self, **kwargs):
+        path_str = kwargs.get("path", ".")
+
+        path = Path(path_str)
+
+        if not path.exists():
+            return {
+                "success": False,
+                "error": f"Path not found: {path_str}"
+            }
+
+        if not path.is_dir():
+            return {
+                "success": False,
+                "error": f"Not a directory: {path_str}"
+            }
+
+        try:
+            items = []
+
+            for item in path.iterdir():
+                items.append({
+                    "name": item.name,
+                    "type": "directory" if item.is_dir() else "file"
+                })
+
+            return {
+                "success": True,
+                "path": path_str,
+                "items": items
+            }
+
+        except Exception as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }

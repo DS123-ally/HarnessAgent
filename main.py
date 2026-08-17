@@ -3,7 +3,7 @@ from forge.conversation import Conversation
 from forge.context.instructions import load_project_instructions
 from forge.model.lmstudio import LMStudioProvider
 
-from forge.tools.files import ReadFileTool
+from forge.tools.files import ReadFileTool,ListFilesTool
 from forge.tools.registry import ToolRegistry
 
 
@@ -22,12 +22,12 @@ conversation.add_system(
     f"""
 You are HarnessAgent, a coding agent.
 
-You can inspect project files using tools.
+You can inspect the project using tools.
 
-If the user asks about a file and you do not know its contents,
-use the read_file tool.
+Use list_files when you need to discover files or folders.
+Use read_file when you need to inspect file contents.
 
-Do not invent file contents.
+Do not invent project structure or file contents.
 
 Project instructions:
 
@@ -41,6 +41,7 @@ tools = ToolRegistry()
 tools.register(
     ReadFileTool()
 )
+tools.register(ListFilesTool())
 
 
 agent = Agent(
