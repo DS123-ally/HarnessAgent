@@ -1,53 +1,74 @@
-from forge.model.lmstudio import LMStudioProvider
+from forge.agent import Agent
 from forge.conversation import Conversation
 from forge.context.instructions import load_project_instructions
-from forge.context.references import inject_file_references
+from forge.model.lmstudio import LMStudioProvider
 
+from forge.tools.files import ReadFileTool
+from forge.tools.registry import ToolRegistry
+
+
+MODEL_ID = "google/gemma-4-e4b"
 
 
 model = LMStudioProvider(
-    model="YOUR_MODEL_ID"
+    model=MODEL_ID
 )
 
 conversation = Conversation()
 
 instructions = load_project_instructions()
 
-system_prompt = f"""
-You are HarnessAgent, a coding assistant.
+conversation.add_system(
+    f"""
+You are HarnessAgent, a coding agent.
 
-Follow these project instructions:
+You can inspect project files using tools.
+
+If the user asks about a file and you do not know its contents,
+use the read_file tool.
+
+Do not invent file contents.
+
+Project instructions:
 
 {instructions}
 """
-
-conversation.add_system(
-    system_prompt
 )
 
-print("HarnessAgent v0.1")
+
+tools = ToolRegistry()
+
+tools.register(
+    ReadFileTool()
+)
+
+
+agent = Agent(
+    model=model,
+    conversation=conversation,
+    tool_registry=tools
+)
+
+
+print("HarnessAgent v0.4")
+print("Tools: read_file")
 print("Type 'exit' to stop.\n")
 
 
 while True:
+
     user_input = input("You > ")
 
-    if user_input.lower() in {"exit", "quit"}:
-        print("HarnessAgent stopped.")
+    if user_input.lower() in {
+        "exit",
+        "quit"
+    }:
         break
 
-    processed_input = inject_file_references(
-    user_input
-)
-
-    conversation.add_user(
-    processed_input
-)
-
-    response = model.generate(
-        conversation.get_messages()
+    response = agent.run(
+        user_input
     )
 
-    conversation.add_assistant(response)
-
-    print(f"\nHarnessAgent > {response}\n")
+    print(
+        f"\nHarnessAgent > {response}\n"
+    )
