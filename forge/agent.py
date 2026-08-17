@@ -70,31 +70,29 @@ class Agent:
                     f"\n[tool] {tool_name}({arguments})"
                 )
 
-                result = self.tools.execute(
-                    tool_name,
-                    arguments
-                )
-
                 if self.approval.requires_approval(tool_name):
+                    approved = self.approval.ask(
+                        tool_name,
+                        arguments
+                    )
 
-                  approved = self.approval.ask(
-        tool_name,
-        arguments
-      )
-
-                if not approved:
-                    result = {
-                    "success": False,
-                    "error": "User denied tool execution"
-                }
-
+                    if not approved:
+                        result = {
+                            "success": False,
+                            "error": "User denied the action"
+                        }
+                    else:
+                        result = self.tools.execute(
+                            tool_name,
+                            arguments
+                        )
                 else:
-                     result = self.tools.execute(
-            tool_name,
-            arguments
-        )       
+                    result = self.tools.execute(
+                        tool_name,
+                        arguments
+                    )
 
-            self.conversation.messages.append({
+                self.conversation.messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
                     "content": json.dumps(result)

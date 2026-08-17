@@ -3,7 +3,7 @@ from forge.conversation import Conversation
 from forge.context.instructions import load_project_instructions
 from forge.model.lmstudio import LMStudioProvider
 
-from forge.tools.files import ReadFileTool,ListFilesTool,SearchFilesTool,WriteFileTool
+from forge.tools.files import ReadFileTool,ListFilesTool,SearchFilesTool,WriteFileTool,    DeleteFileTool
 from forge.tools.registry import ToolRegistry
 
 
@@ -48,6 +48,7 @@ tools.register(
 tools.register(ListFilesTool())
 tools.register(SearchFilesTool())
 tools.register(WriteFileTool())
+tools.register(DeleteFileTool())
 
 
 agent = Agent(

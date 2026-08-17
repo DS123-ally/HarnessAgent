@@ -262,3 +262,60 @@ class WriteFileTool(Tool):
                 "success": False,
                 "error": str(exc)
             }
+
+
+## Delete File Tool 
+
+class DeleteFileTool(Tool):
+    name = "delete_file"
+
+    description = "Delete a file from the current project."
+
+    parameters = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Relative path of the file to delete"
+            }
+        },
+        "required": ["path"]
+    }
+
+    def execute(self, **kwargs):
+        path_str = kwargs.get("path")
+
+        if not path_str:
+            return {
+                "success": False,
+                "error": "Missing path"
+            }
+
+        path = Path(path_str)
+
+        if not path.exists():
+            return {
+                "success": False,
+                "error": f"File not found: {path_str}"
+            }
+
+        if not path.is_file():
+            return {
+                "success": False,
+                "error": f"Not a file: {path_str}"
+            }
+
+        try:
+            path.unlink()
+
+            return {
+                "success": True,
+                "path": path_str,
+                "message": f"Deleted file: {path_str}"
+            }
+
+        except Exception as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
