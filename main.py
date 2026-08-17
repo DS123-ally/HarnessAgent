@@ -5,6 +5,7 @@ from forge.model.lmstudio import LMStudioProvider
 
 from forge.tools.files import ReadFileTool,ListFilesTool,EditFileTool,SearchFilesTool,WriteFileTool,DeleteFileTool
 from forge.tools.registry import ToolRegistry
+from forge.tools.shell import RunCommandTool
 
 
 MODEL_ID = "google/gemma-4-e4b"
@@ -30,6 +31,12 @@ Use:
 - edit_file for small modifications to existing files.
 - delete_file only when the user explicitly asks to remove a file.
 
+Use run_command when you need to execute code, run tests,
+inspect Git state, or verify a change.
+
+After modifying code, prefer verifying the change with an appropriate command.
+Never claim that code works unless verification succeeded.
+
 Prefer edit_file over rewriting an entire existing file.
 
 Never invent file contents.
@@ -52,6 +59,7 @@ tools.register(SearchFilesTool())
 tools.register(WriteFileTool())
 tools.register(DeleteFileTool())
 tools.register(EditFileTool())
+tools.register(RunCommandTool())
 
 
 agent = Agent(
