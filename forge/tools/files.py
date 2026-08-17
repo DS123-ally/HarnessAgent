@@ -319,3 +319,111 @@ class DeleteFileTool(Tool):
                 "success": False,
                 "error": str(exc)
             }
+
+
+
+## Edit File Tool 
+class EditFileTool(Tool):
+    name = "edit_file"
+
+    description = (
+        "Edit an existing text file by replacing exact text "
+        "with new text."
+    )
+
+    parameters = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Relative path of the file to edit"
+            },
+            "old_text": {
+                "type": "string",
+                "description": "Exact existing text to replace"
+            },
+            "new_text": {
+                "type": "string",
+                "description": "Replacement text"
+            }
+        },
+        "required": [
+            "path",
+            "old_text",
+            "new_text"
+        ]
+    }
+
+    def execute(self, **kwargs):
+        path_str = kwargs.get("path")
+        old_text = kwargs.get("old_text")
+        new_text = kwargs.get("new_text")
+
+        if not path_str:
+            return {
+                "success": False,
+                "error": "Missing path"
+            }
+
+        if old_text is None:
+            return {
+                "success": False,
+                "error": "Missing old_text"
+            }
+
+        if new_text is None:
+            return {
+                "success": False,
+                "error": "Missing new_text"
+            }
+
+        path = Path(path_str)
+
+        if not path.exists():
+            return {
+                "success": False,
+                "error": f"File not found: {path_str}"
+            }
+
+        if not path.is_file():
+            return {
+                "success": False,
+                "error": f"Not a file: {path_str}"
+            }
+
+        try:
+            content = path.read_text(
+                encoding="utf-8",
+                errors="replace"
+            )
+
+            if old_text not in content:
+                return {
+                    "success": False,
+                    "error": "old_text was not found in the file"
+                }
+
+            # Important:
+            # only replace the first matching occurrence
+            updated_content = content.replace(
+                old_text,
+                new_text,
+                1
+            )
+
+            path.write_text(
+                updated_content,
+                encoding="utf-8"
+            )
+
+            return {
+                "success": True,
+                "path": path_str,
+                "message": f"Edited file: {path_str}"
+            }
+
+        except Exception as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }

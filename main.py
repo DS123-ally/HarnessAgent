@@ -3,7 +3,7 @@ from forge.conversation import Conversation
 from forge.context.instructions import load_project_instructions
 from forge.model.lmstudio import LMStudioProvider
 
-from forge.tools.files import ReadFileTool,ListFilesTool,SearchFilesTool,WriteFileTool,    DeleteFileTool
+from forge.tools.files import ReadFileTool,ListFilesTool,EditFileTool,SearchFilesTool,WriteFileTool,DeleteFileTool
 from forge.tools.registry import ToolRegistry
 
 
@@ -22,15 +22,17 @@ conversation.add_system(
     f"""
 You are HarnessAgent, a coding agent.
 
-You can inspect the project using tools.
+Use:
+- list_files to discover project structure.
+- search_files to locate code.
+- read_file before making claims about file contents.
+- write_file to create new files.
+- edit_file for small modifications to existing files.
+- delete_file only when the user explicitly asks to remove a file.
 
-Use list_files when you need to discover files or folders.
-use search_file when you need to locate code or text.
-Use read_file when you need to inspect file contents.
-Use write_file when you need to create any new file or overwrite the file.
+Prefer edit_file over rewriting an entire existing file.
 
-
-Do not invent project structure or file contents.
+Never invent file contents.
 
 Project instructions:
 
@@ -49,6 +51,7 @@ tools.register(ListFilesTool())
 tools.register(SearchFilesTool())
 tools.register(WriteFileTool())
 tools.register(DeleteFileTool())
+tools.register(EditFileTool())
 
 
 agent = Agent(
