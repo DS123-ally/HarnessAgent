@@ -7,7 +7,6 @@ from forge.tools.files import ReadFileTool,ListFilesTool,EditFileTool,SearchFile
 from forge.tools.registry import ToolRegistry
 from forge.tools.shell import RunCommandTool
 
-
 MODEL_ID = "google/gemma-4-e4b"
 
 
