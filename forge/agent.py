@@ -27,6 +27,65 @@ class Agent:
             )
         )
         self.conversation_summary = None
+        self.summarized_turns = 0
+
+    def _compact_history(self, history: list[dict]):
+
+        old_history, new_summarized_count = (
+            self.context.get_unsummarized_old_history(
+                history,
+                self.summarized_turns,
+            )
+        )
+
+        # Nothing new to summarize
+        if not old_history:
+            return
+
+        old_history_text = json.dumps(
+            old_history,
+            ensure_ascii=False,
+            default=str,
+            indent=2,
+        )
+
+        existing_summary = (
+            self.conversation_summary
+            or "No previous summary."
+        )
+
+        summary_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You compact conversation history for a coding agent. "
+                    "Preserve important user requests, decisions, file names, "
+                    "code changes, tool results, errors, project state, and "
+                    "unfinished tasks. Remove repetition and unnecessary chatter. "
+                    "Return only the compact summary."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Existing conversation summary:\n\n"
+                    f"{existing_summary}\n\n"
+                    "New old conversation to merge into the summary:\n\n"
+                    f"{old_history_text}"
+                ),
+            },
+        ]
+
+        response = self.model.generate(
+            messages=summary_messages,
+            tools=[],
+        )
+
+        summary = response.content or ""
+
+        if summary.strip():
+            self.conversation_summary = summary.strip()
+            self.summarized_turns = new_summarized_count
 
     def run(self, user_input: str):
 
@@ -34,33 +93,29 @@ class Agent:
 
         while True:
 
-            # Get complete conversation history
             raw_messages = self.conversation.get_messages()
 
-            # Keep system messages separately
             system_messages = [
                 message
                 for message in raw_messages
                 if message.get("role") == "system"
             ]
 
-            # Everything except system messages is conversation history
             history = [
                 message
                 for message in raw_messages
                 if message.get("role") != "system"
             ]
 
-            # ContextAssembler keeps only recent turns
-            # and truncates huge tool outputs
             recent_history = self.context.get_recent_history(
                 history
             )
 
-            # Final controlled context sent to the model
             messages = system_messages + recent_history
 
-            messages = self.context.enforce_budget(messages)
+            messages = self.context.enforce_budget(
+                messages
+            )
 
             response = self.model.generate(
                 messages=messages,
