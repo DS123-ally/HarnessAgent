@@ -1,6 +1,7 @@
 import json
 
 from forge.context import ContextAssembler, ContextConfig
+from forge.observability import EventLogger
 from forge.tools.approval import ApprovalGate
 
 
@@ -9,11 +10,13 @@ class Agent:
         self,
         model,
         conversation,
-        tool_registry
+        tool_registry,
+        event_logger=None,
     ):
         self.model = model
         self.conversation = conversation
         self.tools = tool_registry
+        self.events = event_logger or EventLogger()
         
         self.approval = ApprovalGate()
 
@@ -90,6 +93,12 @@ class Agent:
     def run(self, user_input: str):
 
         self.conversation.add_user(user_input)
+        self.events.record(
+            "user_message",
+            {
+                "length": len(user_input),
+            },
+        )
 
         while True:
 
@@ -141,6 +150,13 @@ class Agent:
                 messages=messages,
                 tools=self.tools.schemas()
             )
+            self.events.record(
+                "model_response",
+                {
+                    "has_tool_calls": bool(response.tool_calls),
+                    "content_length": len(response.content or ""),
+                },
+            )
 
             # No tool call -> final answer
             if not response.tool_calls:
@@ -186,6 +202,13 @@ class Agent:
                 print(
                     f"\n[tool] {tool_name}({arguments})"
                 )
+                self.events.record(
+                    "tool_call",
+                    {
+                        "name": tool_name,
+                        "arguments": arguments,
+                    },
+                )
 
                 # Check if tool requires user approval
                 if self.approval.requires_approval(
@@ -213,6 +236,14 @@ class Agent:
                         tool_name,
                         arguments
                     )
+
+                self.events.record(
+                    "tool_result",
+                    {
+                        "name": tool_name,
+                        "success": result.get("success"),
+                    },
+                )
 
                 # Store complete tool result in conversation history.
                 # ContextAssembler will truncate it only when

@@ -5,6 +5,11 @@ class ApprovalGate:
         "delete_file",
         "edit_file",
         "run_command",
+        "remember",
+        "create_task",
+        "update_task",
+        "delegate_task",
+        "verify_project",
     }
 
     def requires_approval(self, tool_name: str) -> bool:

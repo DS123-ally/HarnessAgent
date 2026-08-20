@@ -4,8 +4,14 @@ from forge.context.instructions import load_project_instructions
 from forge.model.lmstudio import LMStudioProvider
 
 from forge.tools.files import ReadFileTool,ListFilesTool,EditFileTool,SearchFilesTool,WriteFileTool,DeleteFileTool
+from forge.tools.memory import RememberTool, RecallMemoryTool
+from forge.tools.observability import ShowEventsTool
 from forge.tools.registry import ToolRegistry
 from forge.tools.shell import RunCommandTool
+from forge.tools.skills import ListSkillsTool, ReadSkillTool
+from forge.tools.subagents import DelegateTaskTool, ListDelegationsTool
+from forge.tools.tasks import CreateTaskTool, ListTasksTool, UpdateTaskTool
+from forge.tools.verification import VerifyProjectTool
 
 MODEL_ID = "google/gemma-4-e4b"
 
@@ -29,6 +35,12 @@ Use:
 - write_file to create new files.
 - edit_file for small modifications to existing files.
 - delete_file only when the user explicitly asks to remove a file.
+- list_skills and read_skill to load local project skills.
+- remember and recall_memory for durable project memory.
+- create_task, update_task, and list_tasks for orchestration.
+- delegate_task and list_delegations for subagent work tracking.
+- verify_project to run the test suite.
+- show_events to inspect recent observability events.
 
 Use run_command when you need to execute code, run tests,
 inspect Git state, or verify a change.
@@ -59,6 +71,17 @@ tools.register(WriteFileTool())
 tools.register(DeleteFileTool())
 tools.register(EditFileTool())
 tools.register(RunCommandTool())
+tools.register(ListSkillsTool())
+tools.register(ReadSkillTool())
+tools.register(RememberTool())
+tools.register(RecallMemoryTool())
+tools.register(CreateTaskTool())
+tools.register(UpdateTaskTool())
+tools.register(ListTasksTool())
+tools.register(DelegateTaskTool())
+tools.register(ListDelegationsTool())
+tools.register(VerifyProjectTool())
+tools.register(ShowEventsTool())
 
 
 agent = Agent(
@@ -68,8 +91,8 @@ agent = Agent(
 )
 
 
-print("HarnessAgent v0.4")
-print("Tools: read_file")
+print("HarnessAgent v0.5")
+print("Tools: files, shell, skills, memory, tasks, subagents, verification, events")
 print("Type 'exit' to stop.\n")
 
 

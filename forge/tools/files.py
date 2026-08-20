@@ -1,33 +1,9 @@
-from pathlib import Path
-
+from forge.paths import ProjectPaths
 from forge.tools.base import Tool
 
 
-class ProjectPathMixin:
-    def __init__(self, project_root: str | Path | None = None):
-        self.project_root = Path(
-            project_root or Path.cwd()
-        ).resolve()
-
-    def resolve_project_path(self, path_str: str) -> Path:
-        candidate = Path(path_str)
-
-        if not candidate.is_absolute():
-            candidate = self.project_root / candidate
-
-        resolved = candidate.resolve(strict=False)
-
-        try:
-            resolved.relative_to(self.project_root)
-        except ValueError as exc:
-            raise ValueError(
-                f"Path is outside the project root: {path_str}"
-            ) from exc
-
-        return resolved
-
-    def display_path(self, path: Path) -> str:
-        return str(path.relative_to(self.project_root))
+class ProjectPathMixin(ProjectPaths):
+    pass
 
 
 ## Read File Tool
