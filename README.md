@@ -49,7 +49,52 @@ Then run:
 
 ```powershell
 $env:UV_CACHE_DIR='.uv-cache'
+uv run harness
+```
+
+You can also use the Python entry point:
+
+```powershell
 uv run python main.py
+```
+
+Run a single prompt and exit:
+
+```powershell
+uv run harness --once "read README.md"
+```
+
+Use a different local model id:
+
+```powershell
+uv run harness --model "google/gemma-4-e4b"
+```
+
+Run HarnessAgent against another project folder:
+
+```powershell
+uv run harness --project "C:\Users\Dinesh\MyProject"
+```
+
+From any directory, point `uv` at the HarnessAgent package and choose the
+target project:
+
+```powershell
+uv run --project "C:\Users\Dinesh\HarnessAgent" harness --project "C:\Users\Dinesh\MyProject"
+```
+
+## CLI Commands
+
+Inside the interactive CLI:
+
+```text
+/help
+/tools
+/status
+/security
+/verify
+/clear
+/exit
 ```
 
 ## Test
