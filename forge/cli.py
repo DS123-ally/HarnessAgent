@@ -2,11 +2,27 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from forge.bootstrap import DEFAULT_MODEL_ID, build_agent
+
+
+BANNER_WORDMARK = (
+    r" _   _    _    ____  _   _ _____ ____  ____ ",
+    r"| | | |  / \  |  _ \| \ | | ____/ ___|/ ___|",
+    r"| |_| | / _ \ | |_) |  \| |  _| \___ \\___ \ ",
+    r"|  _  |/ ___ \|  _ <| |\  | |___ ___) |___) |",
+    r"|_| |_/_/   \_\_| \_\_| \_|_____|____/|____/ ",
+    "",
+    r"    _    ____ _____ _   _ _____",
+    r"   / \  / ___| ____| \ | |_   _|",
+    r"  / _ \| |  _|  _| |  \| | | |  ",
+    r" / ___ \ |_| | |___| |\  | | |  ",
+    r"/_/   \_\____|_____|_| \_| |_|  ",
+)
 
 
 @dataclass
@@ -30,25 +46,38 @@ class HarnessAgentCli:
         self.running = True
 
     def banner(self) -> None:
+        wordmark = "\n".join(
+            f"[bold orange3]{line}[/bold orange3]" if line else ""
+            for line in BANNER_WORDMARK
+        )
+        banner_text = "\n".join(
+            [
+                "[bold white on grey23]  * Welcome to HarnessAgent  [/bold white on grey23]",
+                "",
+                wordmark,
+                "",
+                "[dim]Press Enter to continue, or type your request below.[/dim]",
+                "",
+                f"[dim]Model:[/dim] [green]{self.agent.model.model}[/green]",
+                f"[dim]Project:[/dim] [green]{self.project_root}[/green]",
+                f"[dim]Tools:[/dim] [green]{len(self.agent.tools.tools)} registered[/green]",
+                "",
+                "[dim]Type /help for commands, /exit to quit.[/dim]",
+            ]
+        )
+
         self.console.print(
-            Panel.fit(
-                "[bold]HarnessAgent CLI[/bold]\n"
-                f"Model: {self.agent.model.model}\n"
-                f"Project: {self.project_root}\n"
-                "Type /help for commands, /exit to quit.",
+            Panel(
+                banner_text,
                 border_style="cyan",
+                box=box.ASCII,
+                padding=(1, 2),
             )
         )
 
     def run_once(self, prompt: str) -> str:
         response = self.agent.run(prompt)
-        self.console.print(
-            Panel(
-                response or "",
-                title="HarnessAgent",
-                border_style="green",
-            )
-        )
+        self.console.print(f"[bold green]agent[/bold green] > {response or ''}")
         return response
 
     def run(self) -> None:
@@ -146,6 +175,7 @@ class HarnessAgentCli:
                 ),
                 title="Status",
                 border_style="cyan",
+                box=box.ASCII,
             )
         )
 

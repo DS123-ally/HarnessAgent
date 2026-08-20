@@ -88,6 +88,18 @@ class CliTests(unittest.TestCase):
 
         self.assertIn("dummy", output.getvalue())
 
+    def test_banner_shows_branded_startup(self):
+        cli, output = self.make_cli()
+
+        cli.banner()
+
+        banner = output.getvalue()
+
+        self.assertIn("Welcome to HarnessAgent", banner)
+        self.assertIn(r"|_| |_/_/   \_\_| \_\_| \_|", banner)
+        self.assertIn(r"/_/   \_\____|_____|_| \_|", banner)
+        self.assertIn("Press Enter to continue", banner)
+
     def test_normal_input_runs_agent(self):
         cli, output = self.make_cli()
 

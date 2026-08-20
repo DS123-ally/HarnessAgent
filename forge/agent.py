@@ -1,6 +1,7 @@
 import json
 
 from forge.context import ContextAssembler, ContextConfig
+from forge.tool_display import summarize_tool_arguments
 from forge.observability import EventLogger
 from forge.tools.approval import ApprovalGate
 
@@ -200,7 +201,11 @@ class Agent:
                 )
 
                 print(
-                    f"\n[tool] {tool_name}({arguments})"
+                    "\n[tool] "
+                    + summarize_tool_arguments(
+                        tool_name,
+                        arguments,
+                    )
                 )
                 self.events.record(
                     "tool_call",
