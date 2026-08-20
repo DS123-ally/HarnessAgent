@@ -1,6 +1,7 @@
 import subprocess
 
 from forge.paths import ProjectPaths
+from forge.security import SecurityPolicy
 from forge.tools.base import Tool
 
 
@@ -20,22 +21,14 @@ class RunCommandTool(ProjectPaths, Tool):
         "required": ["command"]
     }
 
-    BLOCKED_COMMAND_PARTS = {
-        "git reset --hard",
-        "git clean",
-        "rm ",
-        "rmdir",
-        "del ",
-        "format ",
-        "shutdown",
-    }
-
-    def is_blocked(self, command: str) -> bool:
-        normalized = command.lower().strip()
-
-        return any(
-            blocked in normalized
-            for blocked in self.BLOCKED_COMMAND_PARTS
+    def __init__(
+        self,
+        project_root=None,
+        security_policy: SecurityPolicy | None = None,
+    ):
+        super().__init__(project_root)
+        self.security = security_policy or SecurityPolicy(
+            project_root=self.project_root
         )
 
     def execute(self, **kwargs):
@@ -47,10 +40,12 @@ class RunCommandTool(ProjectPaths, Tool):
                 "error": "Missing command"
             }
 
-        if self.is_blocked(command):
+        allowed, reason = self.security.command_risk(command)
+
+        if not allowed:
             return {
                 "success": False,
-                "error": "Command blocked by execution sandbox"
+                "error": f"Command blocked by execution sandbox: {reason}"
             }
 
         try:
@@ -67,8 +62,8 @@ class RunCommandTool(ProjectPaths, Tool):
                 "success": result.returncode == 0,
                 "command": command,
                 "return_code": result.returncode,
-                "stdout": result.stdout,
-                "stderr": result.stderr
+                "stdout": self.security.redact_text(result.stdout),
+                "stderr": self.security.redact_text(result.stderr)
             }
 
         except subprocess.TimeoutExpired:

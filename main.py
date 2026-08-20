@@ -7,6 +7,7 @@ from forge.tools.files import ReadFileTool,ListFilesTool,EditFileTool,SearchFile
 from forge.tools.memory import RememberTool, RecallMemoryTool
 from forge.tools.observability import ShowEventsTool
 from forge.tools.registry import ToolRegistry
+from forge.tools.security import ShowSecurityPolicyTool
 from forge.tools.shell import RunCommandTool
 from forge.tools.skills import ListSkillsTool, ReadSkillTool
 from forge.tools.subagents import DelegateTaskTool, ListDelegationsTool
@@ -41,6 +42,7 @@ Use:
 - delegate_task and list_delegations for subagent work tracking.
 - verify_project to run the test suite.
 - show_events to inspect recent observability events.
+- show_security_policy to inspect the active security rules.
 
 Use run_command when you need to execute code, run tests,
 inspect Git state, or verify a change.
@@ -82,6 +84,7 @@ tools.register(DelegateTaskTool())
 tools.register(ListDelegationsTool())
 tools.register(VerifyProjectTool())
 tools.register(ShowEventsTool())
+tools.register(ShowSecurityPolicyTool())
 
 
 agent = Agent(
@@ -92,7 +95,7 @@ agent = Agent(
 
 
 print("HarnessAgent v0.5")
-print("Tools: files, shell, skills, memory, tasks, subagents, verification, events")
+print("Tools: files, shell, skills, memory, tasks, subagents, verification, events, security")
 print("Type 'exit' to stop.\n")
 
 

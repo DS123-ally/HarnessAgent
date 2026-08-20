@@ -1,9 +1,23 @@
 from forge.paths import ProjectPaths
+from forge.security import SecurityPolicy
 from forge.tools.base import Tool
 
 
 class ProjectPathMixin(ProjectPaths):
-    pass
+    def __init__(
+        self,
+        project_root=None,
+        security_policy: SecurityPolicy | None = None,
+    ):
+        super().__init__(project_root)
+        self.security = security_policy or SecurityPolicy(
+            project_root=self.project_root
+        )
+
+    def resolve_allowed_path(self, path_str: str):
+        path = self.resolve_project_path(path_str)
+        self.security.check_path_allowed(path)
+        return path
 
 
 ## Read File Tool
@@ -34,8 +48,8 @@ class ReadFileTool(ProjectPathMixin, Tool):
             }
 
         try:
-            path = self.resolve_project_path(file_path)
-        except ValueError as exc:
+            path = self.resolve_allowed_path(file_path)
+        except (PermissionError, ValueError) as exc:
             return {
                 "success": False,
                 "error": str(exc)
@@ -62,7 +76,7 @@ class ReadFileTool(ProjectPathMixin, Tool):
             return {
                 "success": True,
                 "path": self.display_path(path),
-                "content": content
+                "content": self.security.redact_text(content)
             }
 
         except Exception as exc:
@@ -93,8 +107,8 @@ class ListFilesTool(ProjectPathMixin, Tool):
         path_str = kwargs.get("path", ".")
 
         try:
-            path = self.resolve_project_path(path_str)
-        except ValueError as exc:
+            path = self.resolve_allowed_path(path_str)
+        except (PermissionError, ValueError) as exc:
             return {
                 "success": False,
                 "error": str(exc)
@@ -168,8 +182,8 @@ class SearchFilesTool(ProjectPathMixin, Tool):
             }
 
         try:
-            root = self.resolve_project_path(path_str)
-        except ValueError as exc:
+            root = self.resolve_allowed_path(path_str)
+        except (PermissionError, ValueError) as exc:
             return {
                 "success": False,
                 "error": str(exc)
@@ -194,6 +208,9 @@ class SearchFilesTool(ProjectPathMixin, Tool):
                 ):
                     continue
 
+                if self.security.is_path_denied(file_path):
+                    continue
+
                 try:
                     content = file_path.read_text(
                         encoding="utf-8",
@@ -210,7 +227,7 @@ class SearchFilesTool(ProjectPathMixin, Tool):
                         results.append({
                             "file": self.display_path(file_path),
                             "line": line_number,
-                            "text": line.strip()
+                            "text": self.security.redact_text(line.strip())
                         })
 
             return {
@@ -266,8 +283,8 @@ class WriteFileTool(ProjectPathMixin, Tool):
             }
 
         try:
-            path = self.resolve_project_path(path_str)
-        except ValueError as exc:
+            path = self.resolve_allowed_path(path_str)
+        except (PermissionError, ValueError) as exc:
             return {
                 "success": False,
                 "error": str(exc)
@@ -325,8 +342,8 @@ class DeleteFileTool(ProjectPathMixin, Tool):
             }
 
         try:
-            path = self.resolve_project_path(path_str)
-        except ValueError as exc:
+            path = self.resolve_allowed_path(path_str)
+        except (PermissionError, ValueError) as exc:
             return {
                 "success": False,
                 "error": str(exc)
@@ -417,8 +434,8 @@ class EditFileTool(ProjectPathMixin, Tool):
             }
 
         try:
-            path = self.resolve_project_path(path_str)
-        except ValueError as exc:
+            path = self.resolve_allowed_path(path_str)
+        except (PermissionError, ValueError) as exc:
             return {
                 "success": False,
                 "error": str(exc)

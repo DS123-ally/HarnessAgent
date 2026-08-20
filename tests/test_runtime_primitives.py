@@ -72,7 +72,7 @@ class RuntimePrimitiveTests(unittest.TestCase):
     def test_shell_runs_in_project_root_and_blocks_destructive_commands(self):
         runner = RunCommandTool(project_root=self.project_root)
 
-        result = runner.execute(command="python -c \"import pathlib; print(pathlib.Path.cwd())\"")
+        result = runner.execute(command="python -c \"print(__import__('pathlib').Path.cwd())\"")
         blocked = runner.execute(command="git reset --hard")
 
         self.assertTrue(result["success"])

@@ -12,3 +12,4 @@ wheels/
 # HarnessAgent runtime state
 .harness/*.json
 .harness/*.jsonl
+!.harness/security.json

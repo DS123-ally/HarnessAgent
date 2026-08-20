@@ -1,0 +1,49 @@
+{
+  "network": "deny",
+  "allowed_commands": [
+    "python",
+    "uv",
+    "git status",
+    "git diff",
+    "git log"
+  ],
+  "blocked_command_parts": [
+    "git reset --hard",
+    "git clean",
+    "rm ",
+    "rmdir",
+    "del ",
+    "format ",
+    "shutdown",
+    "curl",
+    "wget",
+    "ssh",
+    "scp",
+    "pip install"
+  ],
+  "blocked_shell_operators": [
+    "&&",
+    "||",
+    ";",
+    "|",
+    ">",
+    ">>"
+  ],
+  "deny_paths": [
+    ".git/**",
+    ".venv/**",
+    ".uv-cache/**",
+    "__pycache__/**",
+    ".env",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx"
+  ],
+  "secret_patterns": [
+    "api[_-]?key\\s*[:=]\\s*['\\\"]?[^'\\\"\\s]+",
+    "token\\s*[:=]\\s*['\\\"]?[^'\\\"\\s]+",
+    "secret\\s*[:=]\\s*['\\\"]?[^'\\\"\\s]+",
+    "-----BEGIN [A-Z ]*PRIVATE KEY-----"
+  ]
+}

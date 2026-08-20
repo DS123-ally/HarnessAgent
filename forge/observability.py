@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from forge.paths import ProjectPaths
+from forge.security import SecurityPolicy
 
 
 class EventLogger(ProjectPaths):
@@ -11,8 +12,12 @@ class EventLogger(ProjectPaths):
         self,
         project_root: str | Path | None = None,
         log_path: str = ".harness/events.jsonl",
+        security_policy: SecurityPolicy | None = None,
     ):
         super().__init__(project_root)
+        self.security = security_policy or SecurityPolicy(
+            project_root=self.project_root
+        )
         self.log_path = self.resolve_project_path(log_path)
         self.log_path.parent.mkdir(
             parents=True,
@@ -23,7 +28,7 @@ class EventLogger(ProjectPaths):
         event = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "type": event_type,
-            "payload": payload,
+            "payload": self.security.redact_value(payload),
         }
 
         with self.log_path.open(
