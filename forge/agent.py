@@ -107,11 +107,31 @@ class Agent:
                 if message.get("role") != "system"
             ]
 
+            try:
+                self._compact_history(history)
+            except Exception as exc:
+                print(f"\n[context] Summary skipped: {exc}")
+
             recent_history = self.context.get_recent_history(
                 history
             )
 
-            messages = system_messages + recent_history
+            summary_messages = []
+
+            if self.conversation_summary:
+                summary_messages.append({
+                    "role": "system",
+                    "content": (
+                        "Summary of earlier conversation:\n\n"
+                        + self.conversation_summary
+                    ),
+                })
+
+            messages = (
+                system_messages
+                + summary_messages
+                + recent_history
+            )
 
             messages = self.context.enforce_budget(
                 messages

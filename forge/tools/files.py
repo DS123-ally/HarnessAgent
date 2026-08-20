@@ -3,9 +3,36 @@ from pathlib import Path
 from forge.tools.base import Tool
 
 
+class ProjectPathMixin:
+    def __init__(self, project_root: str | Path | None = None):
+        self.project_root = Path(
+            project_root or Path.cwd()
+        ).resolve()
+
+    def resolve_project_path(self, path_str: str) -> Path:
+        candidate = Path(path_str)
+
+        if not candidate.is_absolute():
+            candidate = self.project_root / candidate
+
+        resolved = candidate.resolve(strict=False)
+
+        try:
+            resolved.relative_to(self.project_root)
+        except ValueError as exc:
+            raise ValueError(
+                f"Path is outside the project root: {path_str}"
+            ) from exc
+
+        return resolved
+
+    def display_path(self, path: Path) -> str:
+        return str(path.relative_to(self.project_root))
+
+
 ## Read File Tool
 
-class ReadFileTool(Tool):
+class ReadFileTool(ProjectPathMixin, Tool):
     name = "read_file"
 
     description = "Read the contents of a text file from the current project."
@@ -30,7 +57,13 @@ class ReadFileTool(Tool):
                 "error": "Missing path"
             }
 
-        path = Path(file_path)
+        try:
+            path = self.resolve_project_path(file_path)
+        except ValueError as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
 
         if not path.exists():
             return {
@@ -52,7 +85,7 @@ class ReadFileTool(Tool):
 
             return {
                 "success": True,
-                "path": file_path,
+                "path": self.display_path(path),
                 "content": content
             }
 
@@ -64,7 +97,7 @@ class ReadFileTool(Tool):
 
 ## List File Tool
 
-class ListFilesTool(Tool):
+class ListFilesTool(ProjectPathMixin, Tool):
     name = "list_files"
 
     description = "List files and folders inside a project directory."
@@ -83,7 +116,13 @@ class ListFilesTool(Tool):
     def execute(self, **kwargs):
         path_str = kwargs.get("path", ".")
 
-        path = Path(path_str)
+        try:
+            path = self.resolve_project_path(path_str)
+        except ValueError as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
 
         if not path.exists():
             return {
@@ -108,7 +147,7 @@ class ListFilesTool(Tool):
 
             return {
                 "success": True,
-                "path": path_str,
+                "path": self.display_path(path),
                 "items": items
             }
 
@@ -122,7 +161,7 @@ class ListFilesTool(Tool):
 ## Search File Tool
 
 
-class SearchFilesTool(Tool):
+class SearchFilesTool(ProjectPathMixin, Tool):
     name = "search_files"
 
     description = "Search for text inside project files."
@@ -152,7 +191,13 @@ class SearchFilesTool(Tool):
                 "error": "Missing search query"
             }
 
-        root = Path(path_str)
+        try:
+            root = self.resolve_project_path(path_str)
+        except ValueError as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
 
         if not root.exists():
             return {
@@ -165,6 +210,12 @@ class SearchFilesTool(Tool):
         try:
             for file_path in root.rglob("*"):
                 if not file_path.is_file():
+                    continue
+
+                if any(
+                    part in {".git", ".venv", ".uv-cache", "__pycache__"}
+                    for part in file_path.parts
+                ):
                     continue
 
                 try:
@@ -181,7 +232,7 @@ class SearchFilesTool(Tool):
                 ):
                     if query.lower() in line.lower():
                         results.append({
-                            "file": str(file_path),
+                            "file": self.display_path(file_path),
                             "line": line_number,
                             "text": line.strip()
                         })
@@ -202,7 +253,7 @@ class SearchFilesTool(Tool):
 ## Wrte Tool File
 
 
-class WriteFileTool(Tool):
+class WriteFileTool(ProjectPathMixin, Tool):
     name = "write_file"
 
     description = "Create a new file or overwrite an existing text file."
@@ -238,7 +289,13 @@ class WriteFileTool(Tool):
                 "error": "Missing content"
             }
 
-        path = Path(path_str)
+        try:
+            path = self.resolve_project_path(path_str)
+        except ValueError as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
 
         try:
             path.parent.mkdir(
@@ -253,8 +310,8 @@ class WriteFileTool(Tool):
 
             return {
                 "success": True,
-                "path": path_str,
-                "message": f"Wrote file: {path_str}"
+                "path": self.display_path(path),
+                "message": f"Wrote file: {self.display_path(path)}"
             }
 
         except Exception as exc:
@@ -266,7 +323,7 @@ class WriteFileTool(Tool):
 
 ## Delete File Tool 
 
-class DeleteFileTool(Tool):
+class DeleteFileTool(ProjectPathMixin, Tool):
     name = "delete_file"
 
     description = "Delete a file from the current project."
@@ -291,7 +348,13 @@ class DeleteFileTool(Tool):
                 "error": "Missing path"
             }
 
-        path = Path(path_str)
+        try:
+            path = self.resolve_project_path(path_str)
+        except ValueError as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
 
         if not path.exists():
             return {
@@ -310,8 +373,8 @@ class DeleteFileTool(Tool):
 
             return {
                 "success": True,
-                "path": path_str,
-                "message": f"Deleted file: {path_str}"
+                "path": self.display_path(path),
+                "message": f"Deleted file: {self.display_path(path)}"
             }
 
         except Exception as exc:
@@ -323,7 +386,7 @@ class DeleteFileTool(Tool):
 
 
 ## Edit File Tool 
-class EditFileTool(Tool):
+class EditFileTool(ProjectPathMixin, Tool):
     name = "edit_file"
 
     description = (
@@ -377,7 +440,13 @@ class EditFileTool(Tool):
                 "error": "Missing new_text"
             }
 
-        path = Path(path_str)
+        try:
+            path = self.resolve_project_path(path_str)
+        except ValueError as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
 
         if not path.exists():
             return {
@@ -418,8 +487,8 @@ class EditFileTool(Tool):
 
             return {
                 "success": True,
-                "path": path_str,
-                "message": f"Edited file: {path_str}"
+                "path": self.display_path(path),
+                "message": f"Edited file: {self.display_path(path)}"
             }
 
         except Exception as exc:
