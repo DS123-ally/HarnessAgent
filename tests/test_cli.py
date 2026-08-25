@@ -2,10 +2,18 @@ import unittest
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from rich.console import Console
 
-from forge.cli import HarnessAgentCli, parse_args
+from forge.cli import (
+    CliConfig,
+    HarnessAgentCli,
+    main,
+    parse_args,
+    run_auth_command,
+    select_model,
+)
 from forge.tools.registry import ToolRegistry
 
 
@@ -68,6 +76,10 @@ class CliTests(unittest.TestCase):
             [
                 "--model",
                 "local-model",
+                "--provider",
+                "gemini",
+                "--api-key-env",
+                "TEST_GEMINI_KEY",
                 "--project",
                 "sample-project",
                 "--once",
@@ -77,9 +89,85 @@ class CliTests(unittest.TestCase):
         )
 
         self.assertEqual(config.model, "local-model")
+        self.assertEqual(config.provider, "gemini")
+        self.assertEqual(config.api_key_env, "TEST_GEMINI_KEY")
         self.assertEqual(config.project, "sample-project")
         self.assertEqual(config.once, "hello")
         self.assertTrue(config.no_color)
+
+    def test_openai_provider_requires_credentials(self):
+        with patch.dict("os.environ", {}, clear=True):
+            exit_code = main([
+                "--provider",
+                "openai",
+                "--model",
+                "gpt-5-codex",
+                "--once",
+                "hello",
+                "--no-color",
+            ])
+
+        self.assertEqual(exit_code, 1)
+
+    def test_parse_args_supports_codex_login_status(self):
+        config = parse_args(["login", "status", "--no-color"])
+
+        self.assertEqual(config.command, "login")
+        self.assertEqual(config.login_action, "status")
+        self.assertTrue(config.no_color)
+
+    def test_auth_status_uses_codex_app_server_account(self):
+        class FakeClient:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return None
+
+            def account(self):
+                return {
+                    "type": "chatgpt",
+                    "email": "person@example.com",
+                    "planType": "plus",
+                }
+
+        output = StringIO()
+        console = Console(file=output, no_color=True)
+        config = CliConfig(command="login", login_action="status")
+
+        with patch("forge.cli.CodexAppServerClient", return_value=FakeClient()):
+            exit_code = run_auth_command(config, console)
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("person@example.com", output.getvalue())
+        self.assertIn("plus", output.getvalue())
+
+    def test_startup_selector_uses_codex_account_default(self):
+        output = StringIO()
+        console = Console(file=output, no_color=True)
+        config = CliConfig()
+
+        with patch.object(console, "input", side_effect=["1", ""]):
+            selected = select_model(config, console)
+
+        self.assertEqual(selected.provider, "codex")
+        self.assertEqual(selected.model, "google/gemma-4-e4b")
+        self.assertIn("Select Model", output.getvalue())
+
+    def test_startup_selector_supports_custom_local_model(self):
+        output = StringIO()
+        console = Console(file=output, no_color=True)
+        config = CliConfig()
+
+        with patch.object(
+            console,
+            "input",
+            side_effect=["3", "my-local-model"],
+        ):
+            selected = select_model(config, console)
+
+        self.assertEqual(selected.provider, "lmstudio")
+        self.assertEqual(selected.model, "my-local-model")
 
     def test_tools_command_prints_registered_tools(self):
         cli, output = self.make_cli()

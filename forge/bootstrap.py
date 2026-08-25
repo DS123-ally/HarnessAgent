@@ -1,9 +1,10 @@
 from pathlib import Path
 
 from forge.agent import Agent
+from forge.codex_agent import CodexAgent
 from forge.conversation import Conversation
 from forge.context.instructions import load_project_instructions
-from forge.model.lmstudio import LMStudioProvider
+from forge.model.lmstudio import LMStudioProvider, OpenAICompatibleProvider
 from forge.observability import EventLogger
 from forge.orchestration import TaskBoard
 from forge.security import SecurityPolicy
@@ -30,6 +31,8 @@ from forge.tools.verification import VerifyProjectTool
 
 
 DEFAULT_MODEL_ID = "google/gemma-4-e4b"
+DEFAULT_PROVIDER = "lmstudio"
+DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
 def build_system_prompt(instructions: str) -> str:
@@ -129,9 +132,54 @@ def build_tool_registry(project_root: str | Path | None = None) -> ToolRegistry:
 def build_agent(
     model_id: str = DEFAULT_MODEL_ID,
     project_root: str | Path | None = None,
+    provider: str = DEFAULT_PROVIDER,
+    base_url: str | None = None,
+    api_key_env: str | None = None,
 ) -> Agent:
     project_root = Path(project_root or Path.cwd()).resolve()
-    model = LMStudioProvider(model=model_id)
+    provider = provider.lower()
+
+    if provider == "codex":
+        tools = build_tool_registry(project_root=project_root)
+        instructions = build_system_prompt(
+            load_project_instructions(project_root)
+        )
+        requested_model = None if model_id == DEFAULT_MODEL_ID else model_id
+        return CodexAgent(
+            model=requested_model,
+            project_root=project_root,
+            tool_registry=tools,
+            developer_instructions=instructions,
+            event_logger=EventLogger(project_root=project_root),
+        )
+    elif provider == "lmstudio":
+        model = LMStudioProvider(model=model_id)
+    elif provider == "openai":
+        model = OpenAICompatibleProvider(
+            model=model_id,
+            provider=provider,
+            api_key_env=api_key_env or "OPENAI_API_KEY",
+        )
+    elif provider == "gemini":
+        model = OpenAICompatibleProvider(
+            model=model_id,
+            provider=provider,
+            base_url=base_url or DEFAULT_GEMINI_BASE_URL,
+            api_key_env=api_key_env or "GEMINI_API_KEY",
+        )
+    elif provider == "openai-compatible":
+        if not base_url:
+            raise ValueError("--base-url is required for openai-compatible provider")
+
+        model = OpenAICompatibleProvider(
+            model=model_id,
+            provider=provider,
+            base_url=base_url,
+            api_key_env=api_key_env or "OPENAI_API_KEY",
+        )
+    else:
+        raise ValueError(f"Unknown model provider: {provider}")
+
     conversation = Conversation()
     conversation.add_system(
         build_system_prompt(load_project_instructions(project_root))

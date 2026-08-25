@@ -1,4 +1,5 @@
 import argparse
+import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -7,7 +8,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from forge.bootstrap import DEFAULT_MODEL_ID, build_agent
+from forge.bootstrap import DEFAULT_MODEL_ID, DEFAULT_PROVIDER, build_agent
+from forge.model.codex_app_server import (
+    CodexAppServerClient,
+    CodexAppServerError,
+)
 
 
 BANNER_WORDMARK = (
@@ -27,7 +32,13 @@ BANNER_WORDMARK = (
 
 @dataclass
 class CliConfig:
-    model: str = DEFAULT_MODEL_ID
+    command: str | None = None
+    login_action: str | None = None
+    device_code: bool = False
+    model: str | None = None
+    provider: str | None = None
+    base_url: str | None = None
+    api_key_env: str | None = None
     project: str = "."
     once: str | None = None
     no_color: bool = False
@@ -58,6 +69,7 @@ class HarnessAgentCli:
                 "",
                 "[dim]Press Enter to continue, or type your request below.[/dim]",
                 "",
+                f"[dim]Provider:[/dim] [green]{getattr(self.agent.model, 'provider', 'unknown')}[/green]",
                 f"[dim]Model:[/dim] [green]{self.agent.model.model}[/green]",
                 f"[dim]Project:[/dim] [green]{self.project_root}[/green]",
                 f"[dim]Tools:[/dim] [green]{len(self.agent.tools.tools)} registered[/green]",
@@ -82,15 +94,21 @@ class HarnessAgentCli:
 
     def run(self) -> None:
         self.banner()
-
-        while self.running:
-            try:
-                user_input = self.console.input("[bold cyan]you[/bold cyan] > ")
-            except (EOFError, KeyboardInterrupt):
-                self.console.print()
-                break
-
-            self.handle_input(user_input.strip())
+        try:
+            while self.running:
+                try:
+                    user_input = self.console.input(
+                        "[bold cyan]you[/bold cyan] > "
+                    )
+                    self.handle_input(user_input.strip())
+                except (EOFError, KeyboardInterrupt):
+                    self.console.print()
+                    break
+                except CodexAppServerError as exc:
+                    self.console.print(f"[red]{exc}[/red]")
+        finally:
+            if hasattr(self.agent, "close"):
+                self.agent.close()
 
     def handle_input(self, user_input: str) -> None:
         if not user_input:
@@ -166,6 +184,7 @@ class HarnessAgentCli:
             Panel(
                 "\n".join(
                     [
+                        f"Provider: {getattr(self.agent.model, 'provider', 'unknown')}",
                         f"Model: {self.agent.model.model}",
                         f"Project: {self.project_root}",
                         f"Tools: {len(self.agent.tools.tools)}",
@@ -194,6 +213,11 @@ class HarnessAgentCli:
         self.console.print_json(data=result)
 
     def clear_history(self, argument: str = "") -> None:
+        if hasattr(self.agent, "reset_conversation"):
+            self.agent.reset_conversation()
+            self.console.print("[green]Conversation cleared.[/green]")
+            return
+
         system_messages = [
             message
             for message in self.agent.conversation.messages
@@ -206,6 +230,8 @@ class HarnessAgentCli:
 
     def exit(self, argument: str = "") -> None:
         self.running = False
+        if hasattr(self.agent, "close"):
+            self.agent.close()
         self.console.print("[cyan]Goodbye.[/cyan]")
 
 
@@ -215,9 +241,38 @@ def parse_args(argv: list[str] | None = None) -> CliConfig:
         description="HarnessAgent local coding-agent CLI",
     )
     parser.add_argument(
+        "command",
+        nargs="?",
+        choices=("login", "logout"),
+        help="Authenticate the Codex account provider",
+    )
+    parser.add_argument(
+        "login_action",
+        nargs="?",
+        choices=("status",),
+        help="Show the current Codex login status",
+    )
+    parser.add_argument(
         "--model",
-        default=DEFAULT_MODEL_ID,
-        help="LM Studio model id",
+        help="Model id to use",
+    )
+    parser.add_argument(
+        "--provider",
+        choices=("lmstudio", "codex", "openai", "gemini", "openai-compatible"),
+        help="Model provider backend",
+    )
+    parser.add_argument(
+        "--device-code",
+        action="store_true",
+        help="Use device-code login instead of a browser callback",
+    )
+    parser.add_argument(
+        "--base-url",
+        help="OpenAI-compatible API base URL",
+    )
+    parser.add_argument(
+        "--api-key-env",
+        help="Environment variable that contains the provider API key",
     )
     parser.add_argument(
         "--project",
@@ -237,16 +292,144 @@ def parse_args(argv: list[str] | None = None) -> CliConfig:
     args = parser.parse_args(argv)
 
     return CliConfig(
+        command=args.command,
+        login_action=args.login_action,
+        device_code=args.device_code,
         model=args.model,
+        provider=args.provider,
+        base_url=args.base_url,
+        api_key_env=args.api_key_env,
         project=args.project,
         once=args.once,
         no_color=args.no_color,
     )
 
 
+def _required_input(console: Console, prompt: str) -> str:
+    while True:
+        value = console.input(prompt).strip()
+        if value:
+            return value
+        console.print("[yellow]Please enter a value.[/yellow]")
+
+
+def select_model(config: CliConfig, console: Console) -> CliConfig:
+    console.print(
+        Panel(
+            "\n".join(
+                [
+                    "[bold cyan]1[/bold cyan]  Codex via ChatGPT account",
+                    "[bold cyan]2[/bold cyan]  Gemma 4 e4b via LM Studio",
+                    "[bold cyan]3[/bold cyan]  Another LM Studio model",
+                    "[bold cyan]4[/bold cyan]  OpenAI API model",
+                    "[bold cyan]5[/bold cyan]  Gemini API model",
+                    "[bold cyan]6[/bold cyan]  OpenAI-compatible endpoint",
+                ]
+            ),
+            title="Select Model",
+            border_style="cyan",
+            box=box.ASCII,
+            padding=(1, 2),
+        )
+    )
+
+    while True:
+        choice = console.input("[bold cyan]Select[/bold cyan] [1]: ").strip() or "1"
+
+        if choice == "1":
+            config.provider = "codex"
+            model = console.input(
+                "Codex model ID (Enter for account default): "
+            ).strip()
+            config.model = model or DEFAULT_MODEL_ID
+            return config
+        if choice == "2":
+            config.provider = "lmstudio"
+            config.model = DEFAULT_MODEL_ID
+            return config
+        if choice == "3":
+            config.provider = "lmstudio"
+            config.model = _required_input(console, "LM Studio model ID: ")
+            return config
+        if choice == "4":
+            config.provider = "openai"
+            config.model = _required_input(console, "OpenAI model ID: ")
+            return config
+        if choice == "5":
+            config.provider = "gemini"
+            config.model = _required_input(console, "Gemini model ID: ")
+            return config
+        if choice == "6":
+            config.provider = "openai-compatible"
+            config.base_url = _required_input(console, "API base URL: ")
+            config.model = _required_input(console, "Model ID: ")
+            return config
+
+        console.print("[yellow]Choose a number from 1 to 6.[/yellow]")
+
+
+def run_auth_command(config: CliConfig, console: Console) -> int:
+    try:
+        with CodexAppServerClient() as client:
+            if config.command == "logout":
+                client.logout()
+                console.print("[green]Signed out of the Codex account.[/green]")
+                return 0
+
+            if config.login_action == "status":
+                account = client.account()
+                if not account:
+                    console.print("[yellow]Not signed in.[/yellow]")
+                    return 1
+
+                console.print(f"[green]Signed in with {account['type']}.[/green]")
+                if account.get("email"):
+                    console.print(f"Account: {account['email']}")
+                if account.get("planType"):
+                    console.print(f"Plan: {account['planType']}")
+                return 0
+
+            login = client.start_login(device_code=config.device_code)
+            login_id = login["loginId"]
+            if login["type"] == "chatgptDeviceCode":
+                console.print(f"Open: [link]{login['verificationUrl']}[/link]")
+                console.print(f"Code: [bold cyan]{login['userCode']}[/bold cyan]")
+                webbrowser.open(login["verificationUrl"])
+            else:
+                console.print("Opening ChatGPT sign-in in your browser...")
+                console.print(f"[link]{login['authUrl']}[/link]")
+                webbrowser.open(login["authUrl"])
+
+            client.wait_for_login(login_id)
+            account = client.account() or {}
+            console.print("[green]ChatGPT login completed.[/green]")
+            if account.get("email"):
+                console.print(f"Account: {account['email']}")
+            if account.get("planType"):
+                console.print(f"Plan: {account['planType']}")
+            return 0
+    except CodexAppServerError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     config = parse_args(argv)
     console = Console(no_color=config.no_color)
+
+    if config.command:
+        return run_auth_command(config, console)
+
+    if config.provider is None and config.model is None and config.once is None:
+        try:
+            select_model(config, console)
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[yellow]Model selection cancelled.[/yellow]")
+            return 130
+
+    config.provider = config.provider or DEFAULT_PROVIDER
+    config.model = config.model or DEFAULT_MODEL_ID
+
     project_root = Path(config.project).resolve()
 
     if not project_root.exists():
@@ -257,10 +440,17 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"[red]Project path is not a directory:[/red] {project_root}")
         return 1
 
-    agent = build_agent(
-        model_id=config.model,
-        project_root=project_root,
-    )
+    try:
+        agent = build_agent(
+            model_id=config.model,
+            project_root=project_root,
+            provider=config.provider,
+            base_url=config.base_url,
+            api_key_env=config.api_key_env,
+        )
+    except (ValueError, CodexAppServerError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 1
     cli = HarnessAgentCli(
         agent=agent,
         project_root=project_root,
@@ -268,8 +458,15 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if config.once:
-        cli.run_once(config.once)
-        return 0
+        try:
+            cli.run_once(config.once)
+            return 0
+        except CodexAppServerError as exc:
+            console.print(f"[red]{exc}[/red]")
+            return 1
+        finally:
+            if hasattr(agent, "close"):
+                agent.close()
 
     cli.run()
     return 0
