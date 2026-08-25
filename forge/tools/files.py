@@ -246,6 +246,154 @@ class SearchFilesTool(ProjectPathMixin, Tool):
 ## Wrte Tool File
 
 
+class CreateDirectoryTool(ProjectPathMixin, Tool):
+    name = "create_directory"
+
+    description = "Create a directory inside the current project."
+
+    parameters = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Relative path of the directory to create"
+            }
+        },
+        "required": ["path"]
+    }
+
+    def execute(self, **kwargs):
+        path_str = kwargs.get("path")
+
+        if not path_str:
+            return {
+                "success": False,
+                "error": "Missing path"
+            }
+
+        try:
+            path = self.resolve_allowed_path(path_str)
+        except (PermissionError, ValueError) as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
+
+        if path.exists() and not path.is_dir():
+            return {
+                "success": False,
+                "error": f"Path exists and is not a directory: {path_str}"
+            }
+
+        try:
+            path.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+            return {
+                "success": True,
+                "path": self.display_path(path),
+                "message": f"Created directory: {self.display_path(path)}"
+            }
+
+        except Exception as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
+
+
+class DeleteDirectoryTool(ProjectPathMixin, Tool):
+    name = "delete_directory"
+
+    description = (
+        "Delete a directory inside the current project. Empty directories "
+        "can be deleted directly; non-empty directories require recursive=true."
+    )
+
+    parameters = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Relative path of the directory to delete"
+            },
+            "recursive": {
+                "type": "boolean",
+                "description": "Delete the directory and all of its contents"
+            }
+        },
+        "required": ["path"]
+    }
+
+    def execute(self, **kwargs):
+        path_str = kwargs.get("path")
+        recursive = bool(kwargs.get("recursive", False))
+
+        if not path_str:
+            return {
+                "success": False,
+                "error": "Missing path"
+            }
+
+        try:
+            path = self.resolve_allowed_path(path_str)
+        except (PermissionError, ValueError) as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
+
+        if not path.exists():
+            return {
+                "success": False,
+                "error": f"Directory not found: {path_str}"
+            }
+
+        if not path.is_dir():
+            return {
+                "success": False,
+                "error": f"Not a directory: {path_str}"
+            }
+
+        try:
+            if recursive:
+                self._delete_tree(path)
+            else:
+                path.rmdir()
+
+            return {
+                "success": True,
+                "path": self.display_path(path),
+                "message": f"Deleted directory: {self.display_path(path)}"
+            }
+
+        except OSError:
+            return {
+                "success": False,
+                "error": (
+                    "Directory is not empty. Use recursive=true to delete "
+                    "the directory and its contents."
+                )
+            }
+
+        except Exception as exc:
+            return {
+                "success": False,
+                "error": str(exc)
+            }
+
+    def _delete_tree(self, path):
+        for child in path.iterdir():
+            self.security.check_path_allowed(child)
+            if child.is_dir():
+                self._delete_tree(child)
+            else:
+                child.unlink()
+        path.rmdir()
+
+
 class WriteFileTool(ProjectPathMixin, Tool):
     name = "write_file"
 

@@ -12,6 +12,8 @@ from forge.skills import SkillManager
 from forge.state import JsonStateStore
 from forge.subagents import SubagentRegistry
 from forge.tools.files import (
+    CreateDirectoryTool,
+    DeleteDirectoryTool,
     DeleteFileTool,
     EditFileTool,
     ListFilesTool,
@@ -43,8 +45,10 @@ Use:
 - list_files to discover project structure.
 - search_files to locate code.
 - read_file before making claims about file contents.
+- create_directory to create folders inside the project.
 - write_file to create new files.
 - edit_file for small modifications to existing files.
+- delete_directory only when the user explicitly asks to remove a folder.
 - delete_file only when the user explicitly asks to remove a file.
 - list_skills and read_skill to load local project skills.
 - remember and recall_memory for durable project memory.
@@ -92,6 +96,14 @@ def build_tool_registry(project_root: str | Path | None = None) -> ToolRegistry:
             security_policy=security_policy,
         ),
         SearchFilesTool(
+            project_root=project_root,
+            security_policy=security_policy,
+        ),
+        CreateDirectoryTool(
+            project_root=project_root,
+            security_policy=security_policy,
+        ),
+        DeleteDirectoryTool(
             project_root=project_root,
             security_policy=security_policy,
         ),
