@@ -127,6 +127,7 @@ class HarnessAgentCli:
 
         handlers = {
             "/help": self.show_help,
+            "/model": self.change_model,
             "/tools": self.show_tools,
             "/status": self.show_status,
             "/security": self.show_security,
@@ -152,6 +153,7 @@ class HarnessAgentCli:
 
         for command, description in (
             ("/help", "Show CLI commands"),
+            ("/model", "Display models and switch the active provider"),
             ("/tools", "List registered model tools"),
             ("/status", "Show model, tool count, and context summary status"),
             ("/security", "Show active security policy"),
@@ -162,6 +164,44 @@ class HarnessAgentCli:
             table.add_row(command, description)
 
         self.console.print(table)
+
+    def change_model(self, argument: str = "") -> None:
+        provider = getattr(self.agent.model, "provider", "unknown")
+        self.console.print(
+            f"[dim]Current:[/dim] [green]{provider}"
+            f" / {self.agent.model.model}[/green]"
+        )
+
+        config = CliConfig(project=str(self.project_root))
+        try:
+            select_model(config, self.console)
+        except (EOFError, KeyboardInterrupt):
+            self.console.print("\n[yellow]Model switch cancelled.[/yellow]")
+            return
+
+        try:
+            new_agent = build_agent(
+                model_id=config.model or DEFAULT_MODEL_ID,
+                project_root=self.project_root,
+                provider=config.provider or DEFAULT_PROVIDER,
+                base_url=config.base_url,
+                api_key_env=config.api_key_env,
+            )
+        except (ValueError, CodexAppServerError) as exc:
+            self.console.print(f"[red]{exc}[/red]")
+            return
+
+        old_agent = self.agent
+        self.agent = new_agent
+        if hasattr(old_agent, "close"):
+            old_agent.close()
+
+        self.console.print(
+            "[green]Model switched.[/green] "
+            f"Provider: {getattr(new_agent.model, 'provider', 'unknown')}, "
+            f"Model: {new_agent.model.model}"
+        )
+        self.console.print("[dim]A new conversation has started.[/dim]")
 
     def show_tools(self, argument: str = "") -> None:
         table = Table(title="Registered Tools")

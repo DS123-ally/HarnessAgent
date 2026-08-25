@@ -151,6 +151,7 @@ Inside the interactive CLI:
 
 ```text
 /help
+/model
 /tools
 /status
 /security

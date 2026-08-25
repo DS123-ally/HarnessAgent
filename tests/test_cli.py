@@ -191,6 +191,29 @@ class CliTests(unittest.TestCase):
 
         self.assertIn("dummy", output.getvalue())
 
+    def test_model_command_switches_agent(self):
+        cli, output = self.make_cli()
+        replacement = DummyAgent()
+        replacement.model = SimpleNamespace(
+            provider="lmstudio",
+            model="new-model",
+        )
+
+        def choose_model(config, console):
+            config.provider = "lmstudio"
+            config.model = "new-model"
+            return config
+
+        with (
+            patch("forge.cli.select_model", side_effect=choose_model),
+            patch("forge.cli.build_agent", return_value=replacement),
+        ):
+            cli.handle_input("/model")
+
+        self.assertIs(cli.agent, replacement)
+        self.assertIn("Model switched", output.getvalue())
+        self.assertIn("new-model", output.getvalue())
+
     def test_banner_shows_branded_startup(self):
         cli, output = self.make_cli()
 
