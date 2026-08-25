@@ -104,6 +104,12 @@ class CodexAgent:
         }
 
     def run(self, user_input: str) -> str:
+        return self._run(user_input)
+
+    def run_stream(self, user_input: str, on_text_delta) -> str:
+        return self._run(user_input, on_text_delta=on_text_delta)
+
+    def _run(self, user_input: str, on_text_delta=None) -> str:
         self._ensure_thread()
         self.conversation.add_user(user_input)
         self.events.record("user_message", {"length": len(user_input)})
@@ -111,6 +117,7 @@ class CodexAgent:
         response = self.client.run_turn(
             user_input,
             server_request_handler=self._handle_server_request,
+            on_text_delta=on_text_delta,
         )
         self.conversation.add_assistant(response)
         self.events.record(

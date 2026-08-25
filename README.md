@@ -113,7 +113,9 @@ uv run harness logout
 
 The `codex` provider uses Codex-managed authentication and routes model tool
 requests through HarnessAgent's registry, security policy, and approval gate.
-The Codex CLI must be installed and available as `codex`.
+Responses stream into the terminal as Codex generates them. The completed
+response is still saved as the authoritative conversation message. The Codex
+CLI must be installed and available as `codex`.
 
 Use Gemini through Google's OpenAI-compatible API:
 

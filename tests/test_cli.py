@@ -57,6 +57,14 @@ class DummyAgent:
         return "agent response"
 
 
+class StreamingDummyAgent(DummyAgent):
+    def run_stream(self, prompt, on_text_delta):
+        self.prompts.append(prompt)
+        on_text_delta("agent ")
+        on_text_delta("response")
+        return "agent response"
+
+
 class CliTests(unittest.TestCase):
     def make_cli(self):
         output = StringIO()
@@ -283,6 +291,21 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(cli.agent.prompts, ["hello agent"])
         self.assertIn("agent response", output.getvalue())
+
+    def test_streaming_input_prints_response_only_once(self):
+        output = StringIO()
+        console = Console(file=output, force_terminal=False, no_color=True)
+        cli = HarnessAgentCli(
+            agent=StreamingDummyAgent(),
+            project_root=Path.cwd(),
+            console=console,
+        )
+
+        response = cli.run_once("hello agent")
+
+        self.assertEqual(response, "agent response")
+        self.assertEqual(output.getvalue().count("agent response"), 1)
+        self.assertIn("agent > agent response", output.getvalue())
 
     def test_clear_command_keeps_system_messages(self):
         cli, output = self.make_cli()

@@ -88,6 +88,39 @@ class HarnessAgentCli:
         )
 
     def run_once(self, prompt: str) -> str:
+        run_stream = getattr(self.agent, "run_stream", None)
+        if callable(run_stream):
+            streamed = False
+
+            def display_delta(delta: str) -> None:
+                nonlocal streamed
+                if not delta:
+                    return
+                self.console.print(
+                    delta,
+                    end="",
+                    markup=False,
+                    highlight=False,
+                )
+                streamed = True
+
+            self.console.print("[bold green]agent[/bold green] > ", end="")
+            try:
+                response = run_stream(prompt, display_delta)
+            except Exception:
+                self.console.print()
+                raise
+
+            if streamed:
+                self.console.print()
+            else:
+                self.console.print(
+                    response or "",
+                    markup=False,
+                    highlight=False,
+                )
+            return response
+
         response = self.agent.run(prompt)
         self.console.print(f"[bold green]agent[/bold green] > {response or ''}")
         return response

@@ -226,6 +226,7 @@ class CodexAppServerClient:
         self,
         prompt: str,
         server_request_handler: Callable[[dict], dict],
+        on_text_delta: Callable[[str], None] | None = None,
     ) -> str:
         if not self.thread_id:
             raise CodexAppServerError("A Codex thread has not been started.")
@@ -251,6 +252,11 @@ class CodexAppServerClient:
 
             method = message.get("method")
             params = message.get("params", {})
+
+            if method == "item/agentMessage/delta":
+                delta = params.get("delta")
+                if on_text_delta is not None and isinstance(delta, str):
+                    on_text_delta(delta)
 
             if method == "item/completed":
                 item = params.get("item", {})
