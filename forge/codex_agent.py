@@ -126,5 +126,13 @@ class CodexAgent:
         self.conversation_summary = None
         self.summarized_turns = 0
 
+    def available_models(self) -> list[dict]:
+        return self.client.list_models()
+
+    def set_model(self, model: str) -> None:
+        self.requested_model = model
+        self.model.model = model
+        self.reset_conversation()
+
     def close(self) -> None:
         self.client.close()

@@ -128,6 +128,7 @@ class HarnessAgentCli:
         handlers = {
             "/help": self.show_help,
             "/model": self.change_model,
+            "/models": self.show_models,
             "/tools": self.show_tools,
             "/status": self.show_status,
             "/security": self.show_security,
@@ -154,6 +155,7 @@ class HarnessAgentCli:
         for command, description in (
             ("/help", "Show CLI commands"),
             ("/model", "Display models and switch the active provider"),
+            ("/models", "Fetch available Codex account models"),
             ("/tools", "List registered model tools"),
             ("/status", "Show model, tool count, and context summary status"),
             ("/security", "Show active security policy"),
@@ -200,6 +202,85 @@ class HarnessAgentCli:
             "[green]Model switched.[/green] "
             f"Provider: {getattr(new_agent.model, 'provider', 'unknown')}, "
             f"Model: {new_agent.model.model}"
+        )
+        self.console.print("[dim]A new conversation has started.[/dim]")
+
+    def show_models(self, argument: str = "") -> None:
+        provider = getattr(self.agent.model, "provider", "unknown")
+
+        try:
+            if provider == "codex" and hasattr(
+                self.agent,
+                "available_models",
+            ):
+                models = self.agent.available_models()
+            else:
+                with CodexAppServerClient() as client:
+                    models = client.list_models()
+        except CodexAppServerError as exc:
+            self.console.print(f"[red]{exc}[/red]")
+            return
+
+        if not models:
+            self.console.print("[yellow]No Codex models are available.[/yellow]")
+            return
+
+        table = Table(title="Available Codex Models")
+        table.add_column("#", style="cyan", justify="right")
+        table.add_column("Model")
+        table.add_column("Reasoning")
+        table.add_column("Input")
+        table.add_column("Default", justify="center")
+
+        for index, model in enumerate(models, start=1):
+            efforts = ", ".join(
+                effort.get("reasoningEffort", "")
+                for effort in model.get("supportedReasoningEfforts", [])
+            ) or "-"
+            modalities = ", ".join(
+                model.get("inputModalities") or ["text", "image"]
+            )
+            table.add_row(
+                str(index),
+                model.get("displayName") or model.get("model") or model["id"],
+                efforts,
+                modalities,
+                "yes" if model.get("isDefault") else "",
+            )
+
+        self.console.print(table)
+        selection = self.console.input(
+            "Select a model number, or press Enter to keep the current model: "
+        ).strip()
+        if not selection:
+            return
+        if not selection.isdigit() or not 1 <= int(selection) <= len(models):
+            self.console.print("[yellow]Invalid model selection.[/yellow]")
+            return
+
+        selected = models[int(selection) - 1]
+        model_id = selected.get("model") or selected["id"]
+
+        if provider == "codex" and hasattr(self.agent, "set_model"):
+            self.agent.set_model(model_id)
+        else:
+            try:
+                new_agent = build_agent(
+                    model_id=model_id,
+                    project_root=self.project_root,
+                    provider="codex",
+                )
+            except (ValueError, CodexAppServerError) as exc:
+                self.console.print(f"[red]{exc}[/red]")
+                return
+
+            old_agent = self.agent
+            self.agent = new_agent
+            if hasattr(old_agent, "close"):
+                old_agent.close()
+
+        self.console.print(
+            f"[green]Model switched to {model_id}.[/green]"
         )
         self.console.print("[dim]A new conversation has started.[/dim]")
 

@@ -41,6 +41,16 @@ class FakeCodexClient:
     def reset_thread(self):
         self.thread_id = None
 
+    def list_models(self):
+        return [
+            {
+                "id": "codex-model",
+                "model": "codex-model",
+                "displayName": "Codex Model",
+                "isDefault": True,
+            }
+        ]
+
     def close(self):
         self.closed = True
 
@@ -86,6 +96,25 @@ class CodexAgentTests(unittest.TestCase):
 
         self.assertIsNone(client.thread_id)
         self.assertEqual(len(agent.conversation.messages), 1)
+
+    def test_lists_and_switches_codex_models(self):
+        tools = ToolRegistry()
+        tools.register(EchoTool())
+        client = FakeCodexClient()
+        agent = CodexAgent(
+            model=None,
+            project_root=Path.cwd(),
+            tool_registry=tools,
+            developer_instructions="Test instructions",
+            client=client,
+        )
+
+        models = agent.available_models()
+        agent.set_model(models[0]["model"])
+
+        self.assertEqual(agent.model.model, "codex-model")
+        self.assertEqual(agent.requested_model, "codex-model")
+        self.assertIsNone(client.thread_id)
 
 
 if __name__ == "__main__":

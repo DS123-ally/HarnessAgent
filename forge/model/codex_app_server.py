@@ -182,6 +182,24 @@ class CodexAppServerClient:
     def logout(self) -> None:
         self.request("account/logout")
 
+    def list_models(self, include_hidden: bool = False) -> list[dict]:
+        models = []
+        cursor = None
+
+        while True:
+            params = {
+                "limit": 100,
+                "includeHidden": include_hidden,
+            }
+            if cursor:
+                params["cursor"] = cursor
+
+            result = self.request("model/list", params)
+            models.extend(result.get("data", []))
+            cursor = result.get("nextCursor")
+            if not cursor:
+                return models
+
     def start_thread(
         self,
         project_root: str | Path,

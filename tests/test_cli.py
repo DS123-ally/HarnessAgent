@@ -214,6 +214,56 @@ class CliTests(unittest.TestCase):
         self.assertIn("Model switched", output.getvalue())
         self.assertIn("new-model", output.getvalue())
 
+    def test_models_command_lists_and_selects_account_model(self):
+        class CodexDummyAgent(DummyAgent):
+            def __init__(self):
+                super().__init__()
+                self.model = SimpleNamespace(
+                    provider="codex",
+                    model="account default",
+                )
+
+            def available_models(self):
+                return [
+                    {
+                        "id": "model-a",
+                        "model": "model-a",
+                        "displayName": "Model A",
+                        "supportedReasoningEfforts": [
+                            {"reasoningEffort": "medium"}
+                        ],
+                        "inputModalities": ["text", "image"],
+                        "isDefault": True,
+                    },
+                    {
+                        "id": "model-b",
+                        "model": "model-b",
+                        "displayName": "Model B",
+                        "supportedReasoningEfforts": [],
+                        "inputModalities": ["text"],
+                        "isDefault": False,
+                    },
+                ]
+
+            def set_model(self, model):
+                self.model.model = model
+
+        output = StringIO()
+        console = Console(file=output, no_color=True)
+        agent = CodexDummyAgent()
+        cli = HarnessAgentCli(
+            agent=agent,
+            project_root=Path.cwd(),
+            console=console,
+        )
+
+        with patch.object(console, "input", return_value="2"):
+            cli.handle_input("/models")
+
+        self.assertEqual(agent.model.model, "model-b")
+        self.assertIn("Available Codex Models", output.getvalue())
+        self.assertIn("Model switched to model-b", output.getvalue())
+
     def test_banner_shows_branded_startup(self):
         cli, output = self.make_cli()
 
