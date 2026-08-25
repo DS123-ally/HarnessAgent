@@ -114,8 +114,9 @@ uv run harness logout
 The `codex` provider uses Codex-managed authentication and routes model tool
 requests through HarnessAgent's registry, security policy, and approval gate.
 Responses stream into the terminal as Codex generates them. The completed
-response is still saved as the authoritative conversation message. The Codex
-CLI must be installed and available as `codex`.
+response is still saved as the authoritative conversation message. HarnessAgent
+also prints compact elapsed-time and token usage details after each response.
+The Codex CLI must be installed and available as `codex`.
 
 Use Gemini through Google's OpenAI-compatible API:
 
@@ -155,12 +156,32 @@ Inside the interactive CLI:
 /help
 /model
 /models
+/project
+/usage
 /tools
 /status
 /security
 /verify
 /clear
 /exit
+```
+
+Switch to another project folder without leaving the CLI:
+
+```text
+/project C:\Users\Dinesh\MyProject
+```
+
+Create a new folder and switch to it:
+
+```text
+/project --create C:\Users\Dinesh\NewProject
+```
+
+Show last-response usage and available Codex account limit details:
+
+```text
+/usage
 ```
 
 ## Test

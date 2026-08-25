@@ -34,6 +34,7 @@ class CodexAgent:
         self.conversation.add_system(developer_instructions)
         self.conversation_summary = None
         self.summarized_turns = 0
+        self.last_usage = None
 
     def _dynamic_tools(self) -> list[dict]:
         tools = []
@@ -119,6 +120,7 @@ class CodexAgent:
             server_request_handler=self._handle_server_request,
             on_text_delta=on_text_delta,
         )
+        self.last_usage = getattr(self.client, "last_usage", None)
         self.conversation.add_assistant(response)
         self.events.record(
             "model_response",
@@ -135,6 +137,9 @@ class CodexAgent:
 
     def available_models(self) -> list[dict]:
         return self.client.list_models()
+
+    def usage_report(self) -> dict:
+        return self.client.usage_report()
 
     def set_model(self, model: str) -> None:
         self.requested_model = model

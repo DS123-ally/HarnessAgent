@@ -32,6 +32,7 @@ class Agent:
         )
         self.conversation_summary = None
         self.summarized_turns = 0
+        self.last_usage = None
 
     def _compact_history(self, history: list[dict]):
 
@@ -151,6 +152,7 @@ class Agent:
                 messages=messages,
                 tools=self.tools.schemas()
             )
+            self.last_usage = getattr(self.model, "last_usage", None)
             self.events.record(
                 "model_response",
                 {

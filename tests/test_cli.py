@@ -1,4 +1,5 @@
 import unittest
+import tempfile
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -306,6 +307,44 @@ class CliTests(unittest.TestCase):
         self.assertEqual(response, "agent response")
         self.assertEqual(output.getvalue().count("agent response"), 1)
         self.assertIn("agent > agent response", output.getvalue())
+        self.assertIn("estimated tokens", output.getvalue())
+
+    def test_usage_command_shows_last_response_stats(self):
+        cli, output = self.make_cli()
+
+        cli.handle_input("hello agent")
+        cli.handle_input("/usage")
+
+        text = output.getvalue()
+
+        self.assertIn("Usage", text)
+        self.assertIn("Last response", text)
+        self.assertIn("estimated tokens", text)
+
+    def test_project_command_creates_and_switches_folder(self):
+        cli, output = self.make_cli()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            new_root = Path(temp_dir) / "New Project"
+            replacement = DummyAgent()
+
+            with patch("forge.cli.build_agent", return_value=replacement) as build:
+                cli.handle_input(f'/project --create "{new_root}"')
+
+            self.assertTrue(new_root.exists())
+            self.assertEqual(cli.project_root, new_root.resolve())
+            self.assertIs(cli.agent, replacement)
+            self.assertEqual(build.call_args.kwargs["project_root"], new_root.resolve())
+            self.assertIn("Project switched", output.getvalue())
+
+    def test_project_command_rejects_missing_folder_without_create(self):
+        cli, output = self.make_cli()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing = Path(temp_dir) / "missing"
+            cli.handle_input(f"/project {missing}")
+
+        self.assertIn("Use /project --create", output.getvalue())
 
     def test_clear_command_keeps_system_messages(self):
         cli, output = self.make_cli()

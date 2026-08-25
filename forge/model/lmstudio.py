@@ -33,6 +33,7 @@ class OpenAICompatibleProvider:
         self.model = model
         self.provider = provider
         self.base_url = base_url
+        self.last_usage = None
 
     def generate(self, messages, tools=None):
         kwargs = {
@@ -48,6 +49,24 @@ class OpenAICompatibleProvider:
         response = self.client.chat.completions.create(
             **kwargs
         )
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            if hasattr(usage, "model_dump"):
+                self.last_usage = usage.model_dump()
+            elif isinstance(usage, dict):
+                self.last_usage = usage
+            else:
+                self.last_usage = {
+                    key: getattr(usage, key)
+                    for key in (
+                        "prompt_tokens",
+                        "completion_tokens",
+                        "total_tokens",
+                    )
+                    if hasattr(usage, key)
+                }
+        else:
+            self.last_usage = None
 
         return response.choices[0].message
 

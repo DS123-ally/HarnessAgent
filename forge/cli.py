@@ -1,7 +1,9 @@
 import argparse
+import time
 import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from rich import box
 from rich.console import Console
@@ -50,11 +52,26 @@ class HarnessAgentCli:
         agent,
         project_root: str | Path,
         console: Console | None = None,
+        provider: str | None = None,
+        base_url: str | None = None,
+        api_key_env: str | None = None,
     ):
         self.agent = agent
         self.project_root = Path(project_root).resolve()
         self.console = console or Console()
         self.running = True
+        self.provider = provider or getattr(
+            getattr(agent, "model", None),
+            "provider",
+            DEFAULT_PROVIDER,
+        )
+        self.base_url = base_url or getattr(
+            getattr(agent, "model", None),
+            "base_url",
+            None,
+        )
+        self.api_key_env = api_key_env
+        self.last_response_stats: dict[str, Any] | None = None
 
     def banner(self) -> None:
         wordmark = "\n".join(
@@ -89,6 +106,7 @@ class HarnessAgentCli:
 
     def run_once(self, prompt: str) -> str:
         run_stream = getattr(self.agent, "run_stream", None)
+        started = time.perf_counter()
         if callable(run_stream):
             streamed = False
 
@@ -119,10 +137,12 @@ class HarnessAgentCli:
                     markup=False,
                     highlight=False,
                 )
+            self._record_response_stats(prompt, response, started)
             return response
 
         response = self.agent.run(prompt)
         self.console.print(f"[bold green]agent[/bold green] > {response or ''}")
+        self._record_response_stats(prompt, response, started)
         return response
 
     def run(self) -> None:
@@ -162,6 +182,8 @@ class HarnessAgentCli:
             "/help": self.show_help,
             "/model": self.change_model,
             "/models": self.show_models,
+            "/project": self.change_project,
+            "/usage": self.show_usage,
             "/tools": self.show_tools,
             "/status": self.show_status,
             "/security": self.show_security,
@@ -189,6 +211,8 @@ class HarnessAgentCli:
             ("/help", "Show CLI commands"),
             ("/model", "Display models and switch the active provider"),
             ("/models", "Fetch available Codex account models"),
+            ("/project", "Show or switch project folder; use --create for new folders"),
+            ("/usage", "Show last-response tokens, time, and available account limits"),
             ("/tools", "List registered model tools"),
             ("/status", "Show model, tool count, and context summary status"),
             ("/security", "Show active security policy"),
@@ -228,6 +252,9 @@ class HarnessAgentCli:
 
         old_agent = self.agent
         self.agent = new_agent
+        self.provider = config.provider or DEFAULT_PROVIDER
+        self.base_url = config.base_url
+        self.api_key_env = config.api_key_env
         if hasattr(old_agent, "close"):
             old_agent.close()
 
@@ -309,6 +336,9 @@ class HarnessAgentCli:
 
             old_agent = self.agent
             self.agent = new_agent
+            self.provider = "codex"
+            self.base_url = None
+            self.api_key_env = None
             if hasattr(old_agent, "close"):
                 old_agent.close()
 
@@ -316,6 +346,182 @@ class HarnessAgentCli:
             f"[green]Model switched to {model_id}.[/green]"
         )
         self.console.print("[dim]A new conversation has started.[/dim]")
+
+    def change_project(self, argument: str = "") -> None:
+        if not argument:
+            self.console.print(f"[green]{self.project_root}[/green]")
+            return
+
+        create = False
+        project_text = argument.strip()
+        if project_text.startswith("--create "):
+            create = True
+            project_text = project_text[len("--create "):].strip()
+        elif project_text.endswith(" --create"):
+            create = True
+            project_text = project_text[:-len(" --create")].strip()
+
+        project_text = project_text.strip("\"'")
+        if not project_text:
+            self.console.print("[yellow]Usage: /project [--create] <folder>[/yellow]")
+            return
+
+        new_root = Path(project_text)
+        if not new_root.is_absolute():
+            new_root = (self.project_root / new_root).resolve()
+        else:
+            new_root = new_root.resolve()
+
+        if not new_root.exists():
+            if not create:
+                self.console.print(
+                    "[yellow]Project path not found. "
+                    "Use /project --create <folder> to create it.[/yellow]"
+                )
+                return
+            new_root.mkdir(parents=True, exist_ok=True)
+            self.console.print(f"[green]Created project folder:[/green] {new_root}")
+
+        if not new_root.is_dir():
+            self.console.print(f"[red]Project path is not a directory:[/red] {new_root}")
+            return
+
+        model_id = self._current_model_id()
+        try:
+            new_agent = build_agent(
+                model_id=model_id,
+                project_root=new_root,
+                provider=self.provider,
+                base_url=self.base_url,
+                api_key_env=self.api_key_env,
+            )
+        except (ValueError, CodexAppServerError) as exc:
+            self.console.print(f"[red]{exc}[/red]")
+            return
+
+        old_agent = self.agent
+        self.agent = new_agent
+        self.project_root = new_root
+        self.last_response_stats = None
+        if hasattr(old_agent, "close"):
+            old_agent.close()
+
+        self.console.print(f"[green]Project switched to:[/green] {new_root}")
+        self.console.print("[dim]A new conversation has started.[/dim]")
+
+    def _current_model_id(self) -> str:
+        requested = getattr(self.agent, "requested_model", None)
+        if requested:
+            return requested
+
+        model_id = getattr(self.agent.model, "model", DEFAULT_MODEL_ID)
+        if model_id == "account default":
+            return DEFAULT_MODEL_ID
+        return model_id
+
+    def _record_response_stats(
+        self,
+        prompt: str,
+        response: str,
+        started: float,
+    ) -> None:
+        elapsed = time.perf_counter() - started
+        usage = getattr(self.agent, "last_usage", None) or {}
+        estimated = False
+
+        if not usage:
+            estimated = True
+            input_tokens = max(1, len(prompt) // 4)
+            output_tokens = max(1, len(response or "") // 4)
+            usage = {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+            }
+
+        self.last_response_stats = {
+            "elapsed_seconds": elapsed,
+            "usage": usage,
+            "estimated": estimated,
+        }
+
+        self.console.print(
+            "[dim]"
+            + self._format_usage_line(usage, elapsed, estimated=estimated)
+            + "[/dim]"
+        )
+
+    def _format_usage_line(
+        self,
+        usage: dict,
+        elapsed_seconds: float,
+        *,
+        estimated: bool,
+    ) -> str:
+        input_tokens = self._usage_value(usage, "input_tokens", "prompt_tokens")
+        output_tokens = self._usage_value(
+            usage,
+            "output_tokens",
+            "completion_tokens",
+        )
+        total_tokens = self._usage_value(usage, "total_tokens")
+
+        parts = []
+        if input_tokens is not None:
+            parts.append(f"in {input_tokens}")
+        if output_tokens is not None:
+            parts.append(f"out {output_tokens}")
+        if total_tokens is not None:
+            parts.append(f"total {total_tokens}")
+        if not parts:
+            parts.append("tokens unavailable")
+
+        label = "estimated tokens" if estimated else "tokens"
+        return f"{elapsed_seconds:.1f}s | {label}: " + ", ".join(parts)
+
+    def _usage_value(self, usage: dict, *keys: str):
+        for key in keys:
+            if key in usage:
+                return usage[key]
+        return None
+
+    def show_usage(self, argument: str = "") -> None:
+        lines = [
+            f"Provider: {self.provider}",
+            f"Model: {self.agent.model.model}",
+        ]
+
+        if self.last_response_stats:
+            lines.append(
+                "Last response: "
+                + self._format_usage_line(
+                    self.last_response_stats["usage"],
+                    self.last_response_stats["elapsed_seconds"],
+                    estimated=self.last_response_stats["estimated"],
+                )
+            )
+        else:
+            lines.append("Last response: none yet")
+
+        usage_report = getattr(self.agent, "usage_report", None)
+        if callable(usage_report):
+            report = usage_report()
+            if report.get("success"):
+                lines.append(f"Account usage source: {report.get('method')}")
+                lines.append(str(report.get("data")))
+            else:
+                lines.append(f"Account limits: {report.get('error')}")
+        else:
+            lines.append("Account limits: unavailable for this provider")
+
+        self.console.print(
+            Panel(
+                "\n".join(lines),
+                title="Usage",
+                border_style="cyan",
+                box=box.ASCII,
+            )
+        )
 
     def show_tools(self, argument: str = "") -> None:
         table = Table(title="Registered Tools")
@@ -341,6 +547,16 @@ class HarnessAgentCli:
                         f"Provider: {getattr(self.agent.model, 'provider', 'unknown')}",
                         f"Model: {self.agent.model.model}",
                         f"Project: {self.project_root}",
+                        (
+                            "Last response: "
+                            + self._format_usage_line(
+                                self.last_response_stats["usage"],
+                                self.last_response_stats["elapsed_seconds"],
+                                estimated=self.last_response_stats["estimated"],
+                            )
+                            if self.last_response_stats
+                            else "Last response: none"
+                        ),
                         f"Tools: {len(self.agent.tools.tools)}",
                         f"Messages: {len(self.agent.conversation.messages)}",
                         f"Summary: {summary_state}",
@@ -622,6 +838,9 @@ def main(argv: list[str] | None = None) -> int:
         agent=agent,
         project_root=project_root,
         console=console,
+        provider=config.provider,
+        base_url=config.base_url,
+        api_key_env=config.api_key_env,
     )
 
     if config.once:

@@ -171,7 +171,15 @@ class CodexAppServerStreamingTests(unittest.TestCase):
                 {
                     "method": "turn/completed",
                     "params": {
-                        "turn": {"id": "turn-1", "status": "completed"}
+                        "turn": {
+                            "id": "turn-1",
+                            "status": "completed",
+                            "usage": {
+                                "input_tokens": 12,
+                                "output_tokens": 3,
+                                "total_tokens": 15,
+                            },
+                        }
                     },
                 },
             ]
@@ -183,6 +191,14 @@ class CodexAppServerStreamingTests(unittest.TestCase):
 
         self.assertEqual(deltas, ["Hel", "lo"])
         self.assertEqual(response, "Hello")
+        self.assertEqual(
+            client.last_usage,
+            {
+                "input_tokens": 12,
+                "output_tokens": 3,
+                "total_tokens": 15,
+            },
+        )
 
 
 if __name__ == "__main__":

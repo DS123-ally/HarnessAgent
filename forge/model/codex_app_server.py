@@ -44,6 +44,7 @@ class CodexAppServerClient:
         self._notifications = deque()
         self._stderr_lines = deque(maxlen=20)
         self.thread_id: str | None = None
+        self.last_usage = None
         self._stderr_thread = threading.Thread(
             target=self._drain_stderr,
             daemon=True,
@@ -200,6 +201,27 @@ class CodexAppServerClient:
             if not cursor:
                 return models
 
+    def usage_report(self) -> dict:
+        errors = []
+        for method in ("usage/read", "account/usage", "limits/read"):
+            try:
+                result = self.request(method)
+            except CodexAppServerError as exc:
+                errors.append(f"{method}: {exc}")
+                continue
+            if result:
+                return {
+                    "success": True,
+                    "method": method,
+                    "data": result,
+                }
+
+        return {
+            "success": False,
+            "error": "This Codex CLI does not expose account usage details.",
+            "attempts": errors,
+        }
+
     def start_thread(
         self,
         project_root: str | Path,
@@ -275,6 +297,7 @@ class CodexAppServerClient:
                 turn = params.get("turn", {})
                 if turn.get("id") != turn_id:
                     continue
+                self.last_usage = self._extract_usage(params)
                 if turn.get("status") == "failed":
                     error = turn.get("error") or {}
                     raise CodexAppServerError(
@@ -283,6 +306,42 @@ class CodexAppServerClient:
                         else str(error)
                     )
                 return "\n\n".join(messages)
+
+    def _extract_usage(self, payload: dict) -> dict | None:
+        usage = self._find_usage(payload)
+        if isinstance(usage, dict):
+            return usage
+        return None
+
+    def _find_usage(self, value):
+        if isinstance(value, dict):
+            token_keys = {
+                "input_tokens",
+                "output_tokens",
+                "total_tokens",
+                "prompt_tokens",
+                "completion_tokens",
+                "cached_tokens",
+                "reasoning_tokens",
+            }
+            if "usage" in value and isinstance(value["usage"], dict):
+                return value["usage"]
+            if token_keys.intersection(value):
+                return {
+                    key: value[key]
+                    for key in token_keys
+                    if key in value
+                }
+            for child in value.values():
+                found = self._find_usage(child)
+                if found is not None:
+                    return found
+        if isinstance(value, list):
+            for child in value:
+                found = self._find_usage(child)
+                if found is not None:
+                    return found
+        return None
 
     def reset_thread(self) -> None:
         self.thread_id = None
