@@ -54,8 +54,8 @@ uv run harness
 
 An interactive model selector appears when no provider or model flags are
 given. Choose Codex with your ChatGPT account, the default local Gemma model,
-or another configured provider. Press Enter on the Codex model prompt to use
-the account's default model.
+or another configured provider. In the Codex submenu, choose `1` for the
+account's default model or `2` to enter a custom model ID.
 
 Explicit flags skip the selector, which keeps scripts and one-shot commands
 non-interactive:

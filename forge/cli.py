@@ -338,11 +338,24 @@ def select_model(config: CliConfig, console: Console) -> CliConfig:
 
         if choice == "1":
             config.provider = "codex"
-            model = console.input(
-                "Codex model ID (Enter for account default): "
-            ).strip()
-            config.model = model or DEFAULT_MODEL_ID
-            return config
+            console.print(
+                "[bold cyan]1[/bold cyan]  Account default\n"
+                "[bold cyan]2[/bold cyan]  Enter a custom Codex model ID"
+            )
+            while True:
+                model_choice = console.input(
+                    "[bold cyan]Select Codex model[/bold cyan] [1]: "
+                ).strip() or "1"
+                if model_choice == "1":
+                    config.model = DEFAULT_MODEL_ID
+                    return config
+                if model_choice == "2":
+                    config.model = _required_input(
+                        console,
+                        "Codex model ID: ",
+                    )
+                    return config
+                console.print("[yellow]Choose 1 or 2.[/yellow]")
         if choice == "2":
             config.provider = "lmstudio"
             config.model = DEFAULT_MODEL_ID

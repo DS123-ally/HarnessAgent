@@ -147,12 +147,27 @@ class CliTests(unittest.TestCase):
         console = Console(file=output, no_color=True)
         config = CliConfig()
 
-        with patch.object(console, "input", side_effect=["1", ""]):
+        with patch.object(console, "input", side_effect=["1", "1"]):
             selected = select_model(config, console)
 
         self.assertEqual(selected.provider, "codex")
         self.assertEqual(selected.model, "google/gemma-4-e4b")
         self.assertIn("Select Model", output.getvalue())
+
+    def test_startup_selector_supports_custom_codex_model(self):
+        output = StringIO()
+        console = Console(file=output, no_color=True)
+        config = CliConfig()
+
+        with patch.object(
+            console,
+            "input",
+            side_effect=["1", "2", "custom-codex-model"],
+        ):
+            selected = select_model(config, console)
+
+        self.assertEqual(selected.provider, "codex")
+        self.assertEqual(selected.model, "custom-codex-model")
 
     def test_startup_selector_supports_custom_local_model(self):
         output = StringIO()
